@@ -6,6 +6,8 @@ import { providerAPI, slotAPI, appointmentAPI, paymentAPI, authAPI, getUser, for
 
 const MODES = ['IN_PERSON', 'TELECONSULTATION'];
 const SERVICE_TYPES = ['General Consultation', 'Follow-Up', 'Specialist Consultation', 'Emergency', 'Dental Checkup', 'Eye Checkup'];
+const RAZORPAY_KEY = import.meta.env.VITE_RAZORPAY_KEY || '';
+const IS_RAZORPAY_TEST_MODE = RAZORPAY_KEY.startsWith('rzp_test_');
 const PAY_METHODS = [{ key: 'ONLINE', icon: '💳', label: 'Online Payment (Razorpay)' }, { key: 'COD', icon: '💵', label: 'Cash on Delivery' }];
 
 // Dynamically load Razorpay script if not already loaded
@@ -109,7 +111,7 @@ export default function BookAppointmentPage() {
   };
 
   const openRazorpay = async (appointmentId, razorpayOrderId) => {
-    const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY;
+    const razorpayKey = RAZORPAY_KEY;
 
     console.log('Opening Razorpay checkout...');
     console.log('Key:', razorpayKey);
@@ -187,10 +189,13 @@ export default function BookAppointmentPage() {
       const released = await rollbackFailedOnlineBooking(appointmentId);
       setLoading(false);
       const errMsg = response.error?.description || 'Payment failed';
+      const failureHelp = IS_RAZORPAY_TEST_MODE
+        ? ' Razorpay is in test mode here, so please use the test UPI IDs shown below or choose COD for local testing.'
+        : '';
       setError(
         released
-          ? `Payment failed: ${errMsg}. The booked slot has been released.`
-          : `Payment failed: ${errMsg}. The slot release could not be confirmed automatically, so please check My Appointments once.`
+          ? `Payment failed: ${errMsg}.${failureHelp} The booked slot has been released.`
+          : `Payment failed: ${errMsg}.${failureHelp} The slot release could not be confirmed automatically, so please check My Appointments once.`
       );
     });
 
@@ -204,7 +209,7 @@ export default function BookAppointmentPage() {
 
     try {
       if (payMethod === 'ONLINE') {
-        const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY;
+        const razorpayKey = RAZORPAY_KEY;
         if (!razorpayKey) {
           throw new Error('Razorpay key is not configured in medibook-frontend/.env.');
         }
@@ -495,6 +500,12 @@ export default function BookAppointmentPage() {
                     value={notes} onChange={e => setNotes(e.target.value)} />
                 </div>
 
+                {IS_RAZORPAY_TEST_MODE && payMethod === 'ONLINE' && (
+                  <div className="alert alert-warning" style={{ fontSize: 13 }}>
+                    Razorpay is running in test mode. Real cards may be rejected here, so prefer the test UPI IDs below or use COD while testing locally.
+                  </div>
+                )}
+
                 <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                   <button className="btn btn-outline" onClick={() => setStep(1)}>← Back</button>
                   <button className="btn btn-primary" onClick={() => setStep(3)}>Continue →</button>
@@ -581,7 +592,7 @@ export default function BookAppointmentPage() {
                 </div>
 
                 {/* Test Credentials Helper (only in test mode for ONLINE) */}
-                {(import.meta.env.VITE_RAZORPAY_KEY || '').startsWith('rzp_test_') && payMethod === 'ONLINE' && (
+                {IS_RAZORPAY_TEST_MODE && payMethod === 'ONLINE' && (
                   <div style={{
                     marginTop: 16,
                     padding: 12,

@@ -206,6 +206,7 @@ export default function PatientPayments() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('all');
   const [showPayModal, setShowPayModal] = useState(false);
+  const [downloadingInvoice, setDownloadingInvoice] = useState({});
 
   const load = async () => {
     setLoading(true);
@@ -235,6 +236,26 @@ export default function PatientPayments() {
   };
 
   useEffect(() => { load(); }, []);
+
+  const downloadInvoice = async (paymentId) => {
+    setDownloadingInvoice((prev) => ({ ...prev, [paymentId]: true }));
+    try {
+      const response = await paymentAPI.downloadInvoice(paymentId);
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `invoice-${paymentId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      alert(e.response?.data?.message || 'Unable to download invoice right now.');
+    } finally {
+      setDownloadingInvoice((prev) => ({ ...prev, [paymentId]: false }));
+    }
+  };
 
   const filtered = tab === 'all' ? payments : payments.filter(p => p.status === tab);
   const totalPaid = payments.filter(p => p.status === 'SUCCESS').reduce((s, p) => s + p.amount, 0);
@@ -303,13 +324,14 @@ export default function PatientPayments() {
                     <th>Method</th>
                     <th>Status</th>
                     <th>Date</th>
+                    <th>Invoice</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan={8} style={{ textAlign: 'center', padding: 32 }}><Loader /></td></tr>
+                    <tr><td colSpan={9} style={{ textAlign: 'center', padding: 32 }}><Loader /></td></tr>
                   ) : filtered.length === 0 ? (
-                    <tr><td colSpan={8}>
+                    <tr><td colSpan={9}>
                       <div className="empty-state">
                         <div className="empty-state-icon">💳</div>
                         <div className="empty-state-title">No payments found</div>
@@ -329,6 +351,19 @@ export default function PatientPayments() {
                       <td>{p.paymentMethod || '—'}</td>
                       <td><StatusBadge status={p.status} /></td>
                       <td style={{ color: 'var(--text-muted)', fontSize: 13 }}>{formatDate(p.paidAt || p.createdAt)}</td>
+                      <td>
+                        {p.status === 'SUCCESS' ? (
+                          <button
+                            className="btn btn-outline btn-sm"
+                            onClick={() => downloadInvoice(p.paymentId)}
+                            disabled={downloadingInvoice[p.paymentId]}
+                          >
+                            {downloadingInvoice[p.paymentId] ? 'Downloading...' : 'Download PDF'}
+                          </button>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>Available after payment</span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

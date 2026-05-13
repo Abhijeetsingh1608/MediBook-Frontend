@@ -1,8 +1,19 @@
 import axios from 'axios';
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+const resolveDefaultApiBaseUrl = () => {
+  if (typeof window === 'undefined') {
+    return 'http://localhost:8080';
+  }
+
+  const protocol = window.location.protocol || 'http:';
+  const hostname = window.location.hostname || 'localhost';
+  return `${protocol}//${hostname}:8080`;
+};
+
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || resolveDefaultApiBaseUrl();
+export const OAUTH_BASE_URL = import.meta.env.VITE_OAUTH_BASE_URL || 'http://localhost:8081';
 export const API_V1_PREFIX = '/api/v1';
-export const OAUTH_GOOGLE_URL = `${API_BASE_URL}/oauth2/authorization/google`;
+export const OAUTH_GOOGLE_URL = `${OAUTH_BASE_URL}/oauth2/authorization/google`;
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -173,6 +184,9 @@ export const authAPI = {
   changePassword: (userId, password) =>
     api.put(`${API_V1_PREFIX}/auth/users/${userId}/password`, { password }),
   deactivate: (userId) => api.put(`${API_V1_PREFIX}/auth/users/${userId}/deactivate`),
+  activate: (userId) => api.put(`${API_V1_PREFIX}/auth/users/${userId}/activate`),
+  updateRole: (userId, role) =>
+    api.put(`${API_V1_PREFIX}/auth/users/${userId}/role`, { role: String(role || '').toUpperCase() }),
 };
 
 export const providerAPI = {
@@ -386,6 +400,8 @@ export const paymentAPI = {
     }),
 
   verify: (data) => api.post(`${API_V1_PREFIX}/payments/verify`, data),
+  downloadInvoice: (paymentId) =>
+    api.get(`${API_V1_PREFIX}/payments/${paymentId}/invoice`, { responseType: 'blob' }),
 
   getByAppointment: async (id) => {
     const response = await api.get(`${API_V1_PREFIX}/payments`);

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AdminSidebar, Topbar } from '../../components/Layout';
 import { authAPI, formatDate } from '../../utils/api';
-import { Search, UserX } from 'lucide-react';
+import { Search, UserCheck, UserCog, UserX } from 'lucide-react';
 
 const normalizeRole = (role) => {
   const upper = String(role || '').toUpperCase();
@@ -64,6 +64,37 @@ export default function AdminUsers() {
       )));
     } catch (error) {
       alert(error.response?.data?.message || 'Error deactivating user.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const activate = async (userId) => {
+    if (!confirm('Reactivate this user account?')) return;
+    setActionLoading(`${userId}-activate`);
+    try {
+      const response = await authAPI.activate(userId);
+      setUsers((prev) => prev.map((user) => (
+        user.userId === userId ? toViewUser(response.data) : user
+      )));
+    } catch (error) {
+      alert(error.response?.data?.message || 'Error activating user.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const changeRole = async (userId, currentRole) => {
+    const nextRole = prompt('Enter new role: ADMIN, PROVIDER, or PATIENT', currentRole.toUpperCase());
+    if (!nextRole) return;
+    setActionLoading(`${userId}-role`);
+    try {
+      const response = await authAPI.updateRole(userId, nextRole);
+      setUsers((prev) => prev.map((user) => (
+        user.userId === userId ? toViewUser(response.data) : user
+      )));
+    } catch (error) {
+      alert(error.response?.data?.message || 'Error updating role.');
     } finally {
       setActionLoading(null);
     }
@@ -205,6 +236,24 @@ export default function AdminUsers() {
                               <UserX size={13} />
                             </button>
                           )}
+                          {!user.isActive && (
+                            <button
+                              className="btn btn-success btn-sm"
+                              onClick={() => activate(user.userId)}
+                              disabled={actionLoading === `${user.userId}-activate`}
+                              title="Activate"
+                            >
+                              <UserCheck size={13} />
+                            </button>
+                          )}
+                          <button
+                            className="btn btn-outline btn-sm"
+                            onClick={() => changeRole(user.userId, user.role)}
+                            disabled={actionLoading === `${user.userId}-role`}
+                            title="Change Role"
+                          >
+                            <UserCog size={13} />
+                          </button>
                           <button
                             className="btn btn-outline btn-sm"
                             onClick={() => changePassword(user.userId)}

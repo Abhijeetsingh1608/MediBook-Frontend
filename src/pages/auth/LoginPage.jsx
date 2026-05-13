@@ -20,6 +20,12 @@ export default function LoginPage() {
       const timer = setTimeout(() => setResetSuccess(false), 5000);
       return () => clearTimeout(timer);
     }
+
+    const oauthError = params.get('error');
+    const oauthMessage = params.get('message');
+    if (oauthError) {
+      setError(oauthMessage || 'Google login failed. Please try again.');
+    }
   }, [params]);
 
   const handle = (e) => {
