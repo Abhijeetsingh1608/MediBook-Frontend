@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, CheckCircle, AlertCircle } from 'lucide-react';
+import { ArrowRight, CheckCircle, AlertCircle, UploadCloud, FileText, XCircle } from 'lucide-react';
 import { ProviderSidebar, Topbar, StatusBadge, Loader } from '../../components/Layout';
 import { appointmentAPI, providerAPI, paymentAPI, getUser, formatTime, formatDate, authAPI } from '../../utils/api';
 
@@ -24,6 +24,12 @@ export default function ProviderDashboard() {
   const [patientMap, setPatientMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
+
+  // Document upload state
+  const docInputRef = useRef();
+  const [docFile, setDocFile] = useState(null);
+  const [docUploading, setDocUploading] = useState(false);
+  const [docError, setDocError] = useState('');
 
   const today = new Date().toISOString().split('T')[0];
 
@@ -75,6 +81,32 @@ export default function ProviderDashboard() {
     finally { setActionLoading(null); }
   };
 
+  const handleDocSelect = (e) => {
+    const file = e.target.files?.[0];
+    setDocError('');
+    if (!file) return;
+    if (file.type !== 'application/pdf') { setDocError('Only PDF files are allowed.'); return; }
+    if (file.size > 10 * 1024 * 1024) { setDocError('File must be under 10MB.'); return; }
+    setDocFile(file);
+  };
+
+  const handleDocUpload = async () => {
+    if (!docFile) return;
+    setDocUploading(true);
+    setDocError('');
+    try {
+      const url = await providerAPI.uploadDocument(docFile);
+      await providerAPI.update(provider.providerId, { ...provider, documentUrl: url });
+      setProvider(prev => ({ ...prev, documentUrl: url }));
+      setDocFile(null);
+      alert('Document uploaded successfully! Admin will review it shortly.');
+    } catch (err) {
+      setDocError(err.message || 'Upload failed. Please try again.');
+    } finally {
+      setDocUploading(false);
+    }
+  };
+
   const stats = [
     { icon: '📅', label: "Today's Appointments", value: todayAppts.length, cls: 'stat-icon-blue' },
     { icon: '📊', label: 'Total Appointments', value: allAppts.length, cls: 'stat-icon-green' },
@@ -88,8 +120,21 @@ export default function ProviderDashboard() {
       <div className="dashboard-main">
         <Topbar title="Provider Dashboard" />
         <div className="page-content fade-in">
-          {/* Verification warning */}
-          {provider && !(provider.verified ?? provider.isVerified) && (
+
+          {/* Rejection notice */}
+          {provider && !provider.verified && provider.verificationNote && (
+            <div style={{ background: 'rgba(239,68,68,0.08)', border: '1.5px solid var(--danger,#ef4444)', borderRadius: 'var(--radius)', padding: '14px 18px', marginBottom: 20, display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+              <XCircle size={20} color="#ef4444" style={{ flexShrink: 0, marginTop: 2 }} />
+              <div>
+                <p style={{ fontWeight: 700, color: '#ef4444', marginBottom: 4 }}>Profile Not Approved</p>
+                <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Admin note: {provider.verificationNote}</p>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>Please re-upload your documents and wait for re-review.</p>
+              </div>
+            </div>
+          )}
+
+          {/* Pending verification warning */}
+          {provider && !(provider.verified ?? provider.isVerified) && !provider.verificationNote && (
             <div className="alert alert-warning mb-4">
               ⚠️ Your profile is pending admin verification. You won't appear in patient searches until verified.
             </div>
@@ -200,6 +245,67 @@ export default function ProviderDashboard() {
                   ))}
                 </div>
               </div>
+
+              {/* Document Upload Card — shown when pending */}
+              {provider && !(provider.verified ?? provider.isVerified) && (
+                <div className="card" style={{ border: provider.documentUrl ? '1.5px solid var(--success, #22c55e)' : '1.5px solid var(--primary)' }}>
+                  <div className="card-header">
+                    <span className="card-title">📄 Verification Documents</span>
+                    {provider.documentUrl && <span className="badge badge-green">✓ Uploaded</span>}
+                  </div>
+                  <div className="card-body">
+                    <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
+                      Upload your medical license, degree certificate, or experience letter (PDF only, max 10MB) for admin verification.
+                    </p>
+
+                    {/* Existing doc */}
+                    {provider.documentUrl && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-sm)', marginBottom: 14, border: '1px solid var(--border)' }}>
+                        <FileText size={18} color="var(--primary)" />
+                        <span style={{ fontSize: 13, flex: 1 }}>Document uploaded</span>
+                        <a href={provider.documentUrl} target="_blank" rel="noreferrer"
+                          style={{ fontSize: 12, color: 'var(--primary)', fontWeight: 600 }}>View PDF</a>
+                      </div>
+                    )}
+
+                    {/* File picker */}
+                    <input
+                      ref={docInputRef}
+                      type="file"
+                      accept="application/pdf"
+                      style={{ display: 'none' }}
+                      onChange={handleDocSelect}
+                    />
+
+                    {docFile ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-sm)', marginBottom: 12, border: '1px dashed var(--primary)' }}>
+                        <FileText size={18} color="var(--primary)" />
+                        <span style={{ fontSize: 13, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{docFile.name}</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{(docFile.size / 1024 / 1024).toFixed(1)} MB</span>
+                        <button style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }} onClick={() => setDocFile(null)}>
+                          <XCircle size={16} color="var(--text-muted)" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button className="btn btn-outline btn-sm" style={{ width: '100%', marginBottom: 12, gap: 8 }}
+                        onClick={() => docInputRef.current?.click()}>
+                        <UploadCloud size={16} /> Choose PDF File
+                      </button>
+                    )}
+
+                    {docError && <p style={{ fontSize: 12, color: 'var(--danger, #ef4444)', marginBottom: 10 }}>⚠️ {docError}</p>}
+
+                    <button
+                      className="btn btn-primary"
+                      style={{ width: '100%' }}
+                      disabled={!docFile || docUploading}
+                      onClick={handleDocUpload}
+                    >
+                      {docUploading ? <><span className="spinner" style={{ width: 16, height: 16 }} /> Uploading...</> : <><UploadCloud size={16} /> Upload Document</>}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Profile snippet */}
               {provider && (

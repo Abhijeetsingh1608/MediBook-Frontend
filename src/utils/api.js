@@ -258,6 +258,41 @@ export const providerAPI = {
     invalidateProviderProfile(id);
     return retryRequest(() => api.delete(`${API_V1_PREFIX}/providers/${id}`), 2, 500);
   },
+
+  reject: (id, note = '') => {
+    invalidateProviderListCache();
+    invalidateProviderProfile(id);
+    return retryRequest(
+      () => api.put(`${API_V1_PREFIX}/providers/${id}/reject`, null, { params: { note } }),
+      2,
+      500
+    );
+  },
+
+  // Upload PDF document to Cloudinary (unsigned preset, free tier)
+  // Create an unsigned upload preset named 'medibook_docs' in your Cloudinary dashboard
+  uploadDocument: async (file) => {
+    const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+    const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'medibook_docs';
+    const MAX_SIZE_MB = 10;
+
+    if (!file) throw new Error('No file selected');
+    if (file.type !== 'application/pdf') throw new Error('Only PDF files are allowed');
+    if (file.size > MAX_SIZE_MB * 1024 * 1024) throw new Error(`File must be under ${MAX_SIZE_MB}MB`);
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+    formData.append('resource_type', 'raw'); // required for non-image files
+
+    const res = await fetch(
+      `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/raw/upload`,
+      { method: 'POST', body: formData }
+    );
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    return data.secure_url;
+  },
 };
 
 export const slotAPI = {
