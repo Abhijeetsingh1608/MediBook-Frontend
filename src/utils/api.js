@@ -270,12 +270,16 @@ export const providerAPI = {
   },
 
   // Upload PDF document to Cloudinary (unsigned preset, free tier)
-  // Create an unsigned upload preset named 'medibook_docs' in your Cloudinary dashboard
+  // IMPORTANT: Your Cloudinary upload preset must be set to "Unsigned" and
+  // resource type must be "Raw" (or "Auto") to allow PDF uploads.
+  // Go to: Cloudinary Dashboard → Settings → Upload → Upload presets → medibook_docs
+  // Set: Signing Mode = Unsigned, Resource type = Raw (or Auto)
   uploadDocument: async (file) => {
     const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
     const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'medibook_docs';
     const MAX_SIZE_MB = 10;
 
+    if (!CLOUDINARY_CLOUD_NAME) throw new Error('Cloudinary cloud name is not configured. Check your .env file.');
     if (!file) throw new Error('No file selected');
     if (file.type !== 'application/pdf') throw new Error('Only PDF files are allowed');
     if (file.size > MAX_SIZE_MB * 1024 * 1024) throw new Error(`File must be under ${MAX_SIZE_MB}MB`);
@@ -283,15 +287,29 @@ export const providerAPI = {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-    formData.append('resource_type', 'raw'); // required for non-image files
+    // NOTE: resource_type goes in the URL path, NOT as a FormData field
+    // Using 'auto' so Cloudinary auto-detects PDFs correctly
+    const uploadUrl = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`;
 
-    const res = await fetch(
-      `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/raw/upload`,
-      { method: 'POST', body: formData }
-    );
+    const res = await fetch(uploadUrl, { method: 'POST', body: formData });
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Cloudinary error (${res.status}): ${errText}`);
+    }
     const data = await res.json();
-    if (data.error) throw new Error(data.error.message);
+    if (data.error) throw new Error(`Cloudinary: ${data.error.message}`);
     return data.secure_url;
+  },
+
+  // Save only the documentUrl to the backend (avoids overwriting other fields)
+  updateDocumentUrl: (id, documentUrl) => {
+    invalidateProviderListCache();
+    invalidateProviderProfile(id);
+    return retryRequest(
+      () => api.put(`${API_V1_PREFIX}/providers/${id}`, { documentUrl }),
+      2,
+      500
+    );
   },
 };
 

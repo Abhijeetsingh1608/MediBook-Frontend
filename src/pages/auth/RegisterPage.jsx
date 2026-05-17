@@ -19,17 +19,24 @@ export default function RegisterPage() {
 
   const registerUser = async (e) => {
     e.preventDefault();
+    if (role === 'Provider') {
+      setStep(2);
+      return;
+    }
+
     setError(''); setLoading(true);
     try {
       await authAPI.register({ ...form, role });
       const encodedEmail = encodeURIComponent(form.email.trim());
-      if (role === 'Provider') {
-        setStep(2);
-      } else {
-        navigate(`/otp?email=${encodedEmail}&source=email-verification`, { replace: true });
-      }
+      navigate(`/otp?email=${encodedEmail}&source=email-verification`, { replace: true });
     } catch (err) {
-      setError(err.response?.data?.message || 'Registration failed. Email may already exist.');
+      if (err.code === 'ERR_NETWORK') {
+        setError('Cannot connect to the server. Make sure your local backend is running!');
+      } else if (err.response?.status >= 500) {
+        setError('The server encountered an error (500). Please check backend logs.');
+      } else {
+        setError(err.response?.data?.message || 'Registration failed. Please check your details and try again.');
+      }
     } finally { setLoading(false); }
   };
 
@@ -37,15 +44,20 @@ export default function RegisterPage() {
     e.preventDefault();
     setError(''); setLoading(true);
     try {
+      // Step 1: Create Auth Account (triggers OTP)
+      await authAPI.register({ ...form, role });
+
+      // Step 2: Store provider details in session for OtpPage to pick up after verification
       sessionStorage.setItem('medibook_pending_provider_profile', JSON.stringify({
         ...providerForm,
         fullName: form.fullName,
         experienceYears: parseInt(providerForm.experienceYears || 0, 10),
       }));
+
       const encodedEmail = encodeURIComponent(form.email.trim());
       navigate(`/otp?email=${encodedEmail}&source=email-verification`, { replace: true });
     } catch (err) {
-      setError(err.response?.data?.message || 'Provider profile preparation failed.');
+      setError(err.response?.data?.message || 'Registration failed at Step 2.');
     } finally { setLoading(false); }
   };
 

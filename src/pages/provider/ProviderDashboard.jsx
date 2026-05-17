@@ -95,13 +95,21 @@ export default function ProviderDashboard() {
     setDocUploading(true);
     setDocError('');
     try {
+      // Step 1: Upload PDF to Cloudinary
       const url = await providerAPI.uploadDocument(docFile);
-      await providerAPI.update(provider.providerId, { ...provider, documentUrl: url });
+      // Step 2: Save the URL to backend (only updates documentUrl, nothing else)
+      await providerAPI.updateDocumentUrl(provider.providerId, url);
       setProvider(prev => ({ ...prev, documentUrl: url }));
       setDocFile(null);
-      alert('Document uploaded successfully! Admin will review it shortly.');
+      alert('✅ Document uploaded successfully! Admin will review it shortly.');
     } catch (err) {
-      setDocError(err.message || 'Upload failed. Please try again.');
+      const msg = err.message || 'Upload failed. Please try again.';
+      // Give helpful hint if it looks like a Cloudinary preset issue
+      if (msg.toLowerCase().includes('upload preset') || msg.toLowerCase().includes('401') || msg.includes('400')) {
+        setDocError(`Upload failed: ${msg}. Make sure your Cloudinary preset "medibook_docs" is set to Unsigned and allows Raw/Auto uploads.`);
+      } else {
+        setDocError(msg);
+      }
     } finally {
       setDocUploading(false);
     }
