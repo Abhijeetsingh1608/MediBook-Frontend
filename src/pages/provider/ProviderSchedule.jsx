@@ -195,10 +195,10 @@ export default function ProviderSchedule() {
     finally { setActionLoading(null); }
   };
 
-  const filtered = filterDate ? slots.filter(s => s.date === filterDate) : slots;
+  const filtered = filterDate ? slots.filter(s => (s.slotDate || s.date) === filterDate) : slots;
 
   const grouped = filtered.reduce((acc, s) => {
-    const key = s.date;
+    const key = s.slotDate || s.date;
     if (!acc[key]) acc[key] = [];
     acc[key].push(s);
     return acc;
