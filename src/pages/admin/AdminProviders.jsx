@@ -113,6 +113,8 @@ export default function AdminProviders() {
     return matchSearch && matchTab;
   });
 
+  const securePdfUrl = pdfPreview?.url?.replace(/^http:\/\//i, 'https://') || '';
+
   return (
     <div className="dashboard-layout">
       <AdminSidebar />
@@ -307,7 +309,7 @@ export default function AdminProviders() {
                 </p>
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <a href={pdfPreview.url} target="_blank" rel="noreferrer"
+                <a href={securePdfUrl} target="_blank" rel="noreferrer"
                   className="btn btn-outline btn-sm"
                   style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <ExternalLink size={13} /> Open in Tab
@@ -319,7 +321,7 @@ export default function AdminProviders() {
             {/* PDF Preview (Using iframe for better PDF rendering) */}
             <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', background: '#e5e7eb' }}>
               <iframe
-                src={pdfPreview.url}
+                src={securePdfUrl}
                 title="Document Preview"
                 style={{ width: '100%', height: '100%', border: 'none' }}
                 onError={(e) => {
@@ -329,7 +331,7 @@ export default function AdminProviders() {
               />
               <div style={{ display: 'none', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', padding: 20 }}>
                 <p>Preview cannot be shown directly.</p>
-                <a href={pdfPreview.url} target="_blank" rel="noreferrer" className="btn btn-primary" style={{ marginTop: 12 }}>
+                <a href={securePdfUrl} target="_blank" rel="noreferrer" className="btn btn-primary" style={{ marginTop: 12 }}>
                   Open Document in New Tab
                 </a>
               </div>
